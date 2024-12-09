@@ -8,28 +8,26 @@ import { TextureLoader } from "three";
 
 function App() {
   const tileSize = 150; // Fixed tile size
-  const [gridSize, setGridSize] = useState({ rows: 40, cols: 40 }); // Dynamic grid size
+  const [gridSize, setGridSize] = useState({ rows: 40, cols: 40 });
   const [tilePositions, setTilePositions] = useState([]);
-  const [treePositions, setTreePositions] = useState([]);
+  const [treePositions, setTreePositions] = useState(new Set());
   const [dragging, setDragging] = useState(false);
   const [offset, setOffset] = useState([0, 0]);
   const lastMousePosition = useRef([0, 0]);
   const tileTexture = useRef();
 
-  const expansionThreshold = tileSize * 10; // Trigger expansion earlier
+  const expansionThreshold = tileSize * 5; // Expand 40-50 tiles earlier
 
-  // Preload texture
   useEffect(() => {
+    // Preload texture
     tileTexture.current = new TextureLoader().load("/floor2.jpg");
   }, []);
 
-  // Initialize grid and trees
   useEffect(() => {
     const generateGridAndTrees = () => {
       const positions = [];
       const treeSet = new Set();
       const { rows, cols } = gridSize;
-      const treeCount = Math.floor(rows * cols * 0.05);
 
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
@@ -39,19 +37,19 @@ function App() {
         }
       }
 
-      while (treeSet.size < treeCount) {
+      while (treeSet.size < Math.floor(rows * cols * 0.05)) {
         const randomIndex = Math.floor(Math.random() * positions.length);
-        treeSet.add(positions[randomIndex].toString());
+        const treePosition = positions[randomIndex].toString();
+        treeSet.add(treePosition);
       }
 
       setTilePositions(positions);
-      setTreePositions([...treeSet].map((pos) => pos.split(",").map(Number)));
+      setTreePositions(new Set([...treeSet]));
     };
 
     generateGridAndTrees();
   }, [gridSize, tileSize]);
 
-  // Handle dragging
   const handlePointerDown = (event) => {
     setDragging(true);
     lastMousePosition.current = [event.clientX, event.clientY];
@@ -67,7 +65,6 @@ function App() {
       const newOffsetX = prevX + deltaX;
       const newOffsetZ = prevZ + deltaY;
 
-      // Check for grid expansion
       checkAndExpandGrid(newOffsetX, newOffsetZ);
 
       return [newOffsetX, newOffsetZ];
@@ -82,26 +79,26 @@ function App() {
     const halfGridWidth = (gridSize.cols * tileSize) / 2;
     const halfGridHeight = (gridSize.rows * tileSize) / 2;
 
-    // Expand grid if the user is near the edge
     if (
-      offsetX > halfGridWidth - expansionThreshold ||
-      offsetX < -halfGridWidth + expansionThreshold ||
-      offsetZ > halfGridHeight - expansionThreshold ||
-      offsetZ < -halfGridHeight + expansionThreshold
+      Math.abs(offsetX) > halfGridWidth - expansionThreshold ||
+      Math.abs(offsetZ) > halfGridHeight - expansionThreshold
     ) {
       setGridSize((prev) => ({
-        rows: prev.rows + 80,
-        cols: prev.cols + 80,
+        rows: prev.rows + 40,
+        cols: prev.cols + 40,
       }));
     }
   };
 
   const handleTileClick = (tilePosition) => {
     setTreePositions((prev) => {
-      const alreadyExists = prev.some(
-        ([x, y, z]) => x === tilePosition[0] && z === tilePosition[2]
-      );
-      return alreadyExists ? prev : [...prev, tilePosition];
+      const positionKey = tilePosition.toString();
+      const newTreeSet = new Set(prev);
+
+      if (newTreeSet.has(positionKey)) return newTreeSet;
+
+      newTreeSet.add(positionKey);
+      return newTreeSet;
     });
   };
 
@@ -140,38 +137,27 @@ function App() {
         />
 
         <group position={[offset[0], 0, offset[1]]}>
-          <group position={[offset[0], 0, offset[1]]}>
-            {/* Tiled Ground with Borders */}
-            {tilePositions.map((position, index) => (
-              <mesh
-                key={index}
-                position={position}
-                rotation={[-Math.PI / 2, 0, 0]}
-                onClick={() => handleTileClick(position)}
-              >
-                {/* Tile Geometry */}
-                <planeGeometry args={[tileSize, tileSize]} />
-                <meshStandardMaterial map={tileTexture.current} />
+          {tilePositions.map((position, index) => (
+            <mesh
+              key={index}
+              position={position}
+              rotation={[-Math.PI / 2, 0, 0]}
+              onClick={() => handleTileClick(position)}
+            >
+              <planeGeometry args={[tileSize, tileSize]} />
+              <meshStandardMaterial map={tileTexture.current} />
+              <lineSegments>
+                <edgesGeometry
+                  attach="geometry"
+                  args={[new THREE.PlaneGeometry(tileSize, tileSize)]}
+                />
+                <lineBasicMaterial attach="material" color="black" />
+              </lineSegments>
+            </mesh>
+          ))}
 
-                {/* Black Border */}
-                <lineSegments>
-                  <edgesGeometry
-                    attach="geometry"
-                    args={[new THREE.PlaneGeometry(tileSize, tileSize)]}
-                  />
-                  <lineBasicMaterial attach="material" color="black" />
-                </lineSegments>
-              </mesh>
-            ))}
-
-            {/* Trees with Animation */}
-            {treePositions.map((position, index) => (
-              <TreePop key={index} position={position} />
-            ))}
-          </group>
-
-          {treePositions.map((position, index) => (
-            <TreePop key={index} position={position} />
+          {[...treePositions].map((pos, index) => (
+            <TreePop key={index} position={pos.split(",").map(Number)} />
           ))}
         </group>
       </Canvas>
