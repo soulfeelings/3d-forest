@@ -70,7 +70,25 @@ function App() {
     const deltaX = event.clientX - lastX;
     const deltaY = event.clientY - lastY;
 
-    setOffset(([prevX, prevZ]) => [prevX + deltaX * 1, prevZ + deltaY * 1]);
+    // Calculate new offset
+    setOffset(([prevX, prevZ]) => {
+      const newX = prevX + deltaX * 1;
+      const newZ = prevZ + deltaY * 1;
+
+      // Get canvas dimensions
+      const canvasWidth = window.innerWidth;
+      const canvasHeight = window.innerHeight;
+
+      // Calculate boundaries
+      const maxOffsetX = (gridSize.cols * tileSize) / 2 - canvasWidth / 2;
+      const maxOffsetZ = (gridSize.rows * tileSize) / 2 - canvasHeight / 2;
+
+      // Clamp the offset within the boundaries
+      const clampedX = Math.max(-maxOffsetX, Math.min(maxOffsetX, newX));
+      const clampedZ = Math.max(-maxOffsetZ, Math.min(maxOffsetZ, newZ));
+
+      return [clampedX, clampedZ];
+    });
     lastMousePosition.current = [event.clientX, event.clientY];
   };
 
